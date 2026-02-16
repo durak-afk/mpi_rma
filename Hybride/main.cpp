@@ -80,16 +80,34 @@ int main(int argc, char **argv) {
     if (pid == root)
       debut = chrono::system_clock::now();
 
-    // Diffuser 
-    MPI_Bcast(matrice, n * n, MPI_INT, root, MPI_COMM_WORLD);
+    // --------- Communications RMA 
+    MPI_Win win_matrice;
+    MPI_Win_create(pid == root ? matrice : nullptr, pid == root ? n * n * sizeof(int) : 0, sizeof(int), MPI_INFO_NULL, MPI_COMM_WORLD, &win_matrice);
+    
+    MPI_Win_fence(0, win_matrice);
+    
+    if (pid != root) {
+        MPI_Get(matrice, n * n, MPI_INT, root, 0, n * n, MPI_INT, win_matrice);
+    }
+    
+    MPI_Win_fence(0, win_matrice);
+    MPI_Win_free(&win_matrice);
 
 
+    // ---------
     int vecteurs_par_proc = m / nprocs;
     int *vecteurs_locaux = new int[vecteurs_par_proc * n];
 
-
-    MPI_Scatter(vecteurs, vecteurs_par_proc * n, MPI_INT,
-                 vecteurs_locaux, vecteurs_par_proc * n, MPI_INT, root, MPI_COMM_WORLD);
+    MPI_Win win_vecteurs;
+    MPI_Win_create(pid == root ? vecteurs : nullptr, pid == root ? m * n * sizeof(int) : 0, sizeof(int), MPI_INFO_NULL, MPI_COMM_WORLD, &win_vecteurs);
+    
+    MPI_Win_fence(0, win_vecteurs);
+    
+    int start = pid * vecteurs_par_proc * n;
+    MPI_Get(vecteurs_locaux, vecteurs_par_proc * n, MPI_INT, root, start, vecteurs_par_proc * n, MPI_INT, win_vecteurs);
+    
+    MPI_Win_fence(0, win_vecteurs);
+    MPI_Win_free(&win_vecteurs);
 
  
     int *resultats_locaux = new int[vecteurs_par_proc * n];
@@ -109,13 +127,21 @@ int main(int argc, char **argv) {
 
     }
 
-    // Gather 
+    // --------- Gather avec RMA (one-sided) ---------
     int *resultats;
     if (pid == root)
         resultats = new int[m * n];
     
-    MPI_Gather(resultats_locaux, vecteurs_par_proc * n, MPI_INT,
-               resultats, vecteurs_par_proc * n, MPI_INT, root, MPI_COMM_WORLD);
+    MPI_Win win_resultats;
+    MPI_Win_create(pid == root ? resultats : nullptr, pid == root ? m * n * sizeof(int) : 0, sizeof(int), MPI_INFO_NULL, MPI_COMM_WORLD, &win_resultats);
+    
+    MPI_Win_fence(0, win_resultats);
+    
+    int start_idx = pid * vecteurs_par_proc * n;
+    MPI_Put(resultats_locaux, vecteurs_par_proc * n, MPI_INT, root, start_idx, vecteurs_par_proc * n, MPI_INT, win_resultats);
+    
+    MPI_Win_fence(0, win_resultats);
+    MPI_Win_free(&win_resultats);
     
     
     if (pid == root) {

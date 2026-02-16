@@ -94,6 +94,8 @@ int main(int argc, char **argv) {
  
     int *resultats_locaux = new int[vecteurs_par_proc * n];
     
+
+    #pragma omp parallel for
     for (int i = 0; i < vecteurs_par_proc; i++) {
         matrice_vecteur(n, matrice, vecteurs_locaux + i * n, resultats_locaux + i * n);
     }

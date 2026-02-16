@@ -18,6 +18,7 @@ void generation_vecteur(int n, int* vecteur, int nb_zero) {
 
 void matrice_vecteur(int n, int* matrice, int* v1, int* v2) {
     int ptr = 0;
+
     while(v1[ptr]==0)
         ptr++;
     
